@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:p="http://primefaces.org/ui"
+      xmlns:f="http://xmlns.jcp.org/jsf/core"
+      xmlns:h="http://xmlns.jcp.org/jsf/html"
+      xmlns:ui="http://xmlns.jcp.org/jsf/facelets"
+      xmlns:pt="http://xmlns.jcp.org/jsf/passthrough">
+
+<h:head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Lab 3 - Main Page</title>
+
+    <h:outputStylesheet library="styles" name="global.css"/>
+    <h:outputStylesheet library="styles" name="mainPage.css"/>
+    <h:outputScript library="scripts" name="error.js" target="head" />
+    <h:outputScript library="scripts" name="validator.js" target="head" />
+    <h:outputScript library="scripts" name="draw.js" target="head" />
+
+    <audio id="shot1" src="resources/media/sounds/shot1.mp3"></audio>
+    <audio id="shot2" src="resources/media/sounds/shot2.mp3"></audio>
+    <audio id="shot3" src="resources/media/sounds/shot3.mp3"></audio>
+    <audio id="shot4" src="resources/media/sounds/shot4.mp3"></audio>
+    <h:outputScript library="scripts" name="shotPlay.js" target="body"/>
+    <audio loop="loop" src="resources/media/music/letItSnow.mp3" id="audioBG"/>
+
+</h:head>
+<h:body>
+    <div style="
+        width: 100vw;
+        height: 100vh;
+        background-image: url('#{resource['media:photos/mainPhoto.png']}');
+        background-size: cover;
+        background-position: center;
+        position: relative;
+
+    ">
+    <div class="screen">
+
+        <h1 id="check-point">Проверка точки</h1>
+
+        <div class="main-layout">
+
+
+            <div class="form-panel">
+                <div class="mainCl">
+                <h:form id="input-form" prependId="false">
+
+                    <p:remoteCommand name="resetXServer"
+                                     actionListener="#{pointsBean.resetXList}"
+                                     update="@form"
+                                     process="@this"/>
+                    <p:remoteCommand name="resetYServer"
+                                     actionListener="#{pointsBean.resetY}"
+                                     process="@this"
+                                     update="@form"/>
+                    <script>
+                        window.resetXServerGlobal = function() {
+                            resetXServer(); // JSF remoteCommand
+                        }
+                        window.resetYServerGlobal = function() {
+                            resetYServer();
+                        }
+                    </script>
+                    <div class="input-block">
+                        <div class="input-label">X:</div>
+
+                        <ui:param name="xValues" value="-5,-4,-3,-2,-1,0,1" />
+
+                        <h:panelGrid columns="7">
+                            <ui:repeat value="#{xValues.split(',')}" var="xx">
+
+                                <p:selectBooleanCheckbox id="x#{xx}"
+                                                         value="#{pointsBean.xList[xx]}"
+                                                         pt:data-x="#{xx.trim()}"
+                                                         onchange="updateHiddenX()">
+                                    <p:ajax event="change" process="@this" update="@none"/>
+                                </p:selectBooleanCheckbox>
+
+                                <h:outputLabel for="x#{xx}" value="#{xx}" />
+
+                            </ui:repeat>
+                        </h:panelGrid>
+                    </div>
+
+
+
+                    <div class="input-block">
+                        <div class="input-label">Y:</div>
+
+                        <h:inputText id="yInput"
+                                     value="#{pointsBean.y}"
+                                     styleClass="mafia-input"
+                                     placeholder="-3 ... 5"
+                                     required="true"
+                                     requiredMessage="Y is required">
+                            <f:convertNumber maxFractionDigits="10" minFractionDigits="0" />
+                            <f:validateDoubleRange minimum="-3" maximum="5" />
+                            <p:ajax event="keyup" update="yMessage" oncomplete="syncHiddenY()"/>
+                        </h:inputText>
+                        <h:message id="yMessage" for="yInput" style="color:red; font-size:12px;" />
+                    </div>
+
+
+
+                    <div class="input-block">
+                        <div class="input-label">R:</div>
+
+                        <h:inputText id="rInput"
+                                     value="#{pointsBean.r}"
+                                     styleClass="mafia-input"
+                                     placeholder="1 ... 4"
+                                     required="true"
+                                     requiredMessage="R is required">
+                            <f:convertNumber maxFractionDigits="2" minFractionDigits="0" />
+                            <f:validateDoubleRange minimum="1" maximum="4" />
+                            <p:ajax event="keyup"
+                                    update="rMessage"
+                                    oncomplete="syncHiddenR(); updateGraph(document.getElementById('rInput').value);"/>
+                        </h:inputText>
+                        <h:message id="rMessage" for="rInput" style="color:red; font-size:12px;" />
+                    </div>
+
+
+
+                    <h:inputHidden id="hiddenX" value="#{pointsBean.hiddenX}" />
+                    <h:inputHidden id="hiddenY" value="#{pointsBean.hiddenY}" />
+                    <h:inputHidden id="hiddenR" value="#{pointsBean.hiddenR}" />
+
+
+                    <p:remoteCommand name="resetHiddenRCommand"
+                                     process="@this"
+                                     update=":responsesForm"
+                                     actionListener="#{pointsBean.resetHiddenR}" />
+
+                    <p:remoteCommand name="updateRCommand"
+                                     action="#{pointsBean.setCurrentMaxR}"
+                                     process="@this"
+                                     update="@none"
+                                     oncomplete="getPointsCommand()" />
+
+                    <p:remoteCommand name="getPointsCommand"
+                                     action="#{pointsBean.updateFilteredPoints}"
+                                     process="@this"
+                                     update="@none"
+                                     oncomplete="handleRemoteCommandComplete(args)" />
+                    <p:commandButton id="submitBtn"
+                                     value="Проверить"
+                                     action="#{pointsBean.check}"
+                                     ajax="true"
+                                     process="@form"
+                                     update="input-form @form :responsesForm"
+                                     onclick="
+                                            if (!validate()) {
+                                               shotsEnabled = false;
+                                            return false;
+                                        }
+                                        shotsEnabled = true;
+                                        saveShotCount();
+                                        playShotsInstant();
+                                     "
+
+                                     oncomplete="updateRCommand([{ name: 'maxR', value: document.getElementById('rInput').value }]);
+    resetXServer();
+    resetYServer();
+    "/>
+
+
+
+
+                </h:form>
+                </div>
+                <button class="mafia-button" id="musicButton"> Включить звук </button>
+                <h:outputScript target="body" library="scripts" name="playButton.js"/>
+                <h:link value="Назад" outcome="index" styleClass="mafia-back" />
+
+            </div>
+
+
+
+            <div class="graph-panel" id="graph-panel">
+
+                    <svg width="450" height="450" class="svg" id="mainSvg">
+                    </svg>
+
+
+
+            </div>
+
+        </div>
+
+
+        <h:form id="responsesForm" prependId="false">
+            <p:panel header="Результаты" styleClass="mafia-results">
+                <p:dataTable id="responsesId" value="#{pointsBean.reversedPoints}" var="point"
+                             styleClass="transparent-table"
+                             scrollable="true" scrollHeight="250">
+
+                    <p:column headerText="X">
+                        #{point.x}
+                    </p:column>
+
+                    <p:column headerText="Y">
+                        #{point.y}
+                    </p:column>
+
+                    <p:column headerText="R">
+                        #{point.r}
+                    </p:column>
+
+                    <p:column headerText="Попадание">
+                        #{point.inArea}
+                    </p:column>
+
+                </p:dataTable>
+            </p:panel>
+        </h:form>
+    </div>
+    </div>
+</h:body>
+</html>

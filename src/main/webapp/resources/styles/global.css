@@ -1,0 +1,82 @@
+.mafia-button {
+    display: block;
+    width: fit-content;
+    text-decoration: none !important;
+    font-family: "Georgia", serif;
+    font-size: 22px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    border: none;
+    outline: none;
+    color: black;
+    background: transparent;
+
+    padding: 10px 25px 10px 55px;
+    margin: 12px 0;
+
+
+    cursor: url("#{resource['media:cursors/link.cur']}"), pointer;
+
+    position: relative;
+
+    transition: 0.25s ease;
+}
+
+.mafia-button:hover {
+    background: black;
+    color: white;
+    letter-spacing: 3px;
+}
+
+.mafia-picture {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+
+}
+
+body{
+    font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+    cursor: url("#{resource['media:cursors/arrow.cur']}"), auto;
+}
+
+.mafia-header {
+    font-family: "Georgia", serif;
+    font-size: 28px;
+    font-weight: bold;
+    color: #ffffff;
+    padding: 50px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+
+    margin-bottom: 1px;
+
+    position: relative;
+    display: inline-block;
+
+    background-image: url("#{resource['media:photos/brushstroke.png']}");
+    background-size: cover;
+    width: 480px;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.info-header {
+    font-size: 20px;
+    font-weight: bold;
+    text-align: center;
+}
+
+#check-point {
+    display: flex;
+    font-family: "Georgia", serif;
+    font-size: 28px;
+    font-weight: bold;
+    color: white;
+    padding: 10px;
+    justify-content: center;
+}
+
+

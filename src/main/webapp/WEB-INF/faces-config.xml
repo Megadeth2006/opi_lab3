@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<faces-config xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+                                  http://xmlns.jcp.org/xml/ns/javaee/web-facesconfig_2_3.xsd"
+              version="2.3">
+
+
+  
+<!--   PointRepository Bean -->
+  <managed-bean>
+    <managed-bean-name>pointRepository</managed-bean-name>
+    <managed-bean-class>programming.itmo.repositories.PointRepositoryORM</managed-bean-class>
+    <managed-bean-scope>application</managed-bean-scope>
+  </managed-bean>
+
+  <!-- CheckAreaUtil Bean -->
+  <managed-bean>
+    <managed-bean-name>checkAreaUtil</managed-bean-name>
+    <managed-bean-class>programming.itmo.util.CheckAreaUtil</managed-bean-class>
+    <managed-bean-scope>application</managed-bean-scope>
+    <managed-property>
+      <property-name>pointRepository</property-name>
+      <value>#{pointRepository}</value>
+    </managed-property>
+  </managed-bean>
+
+  <!-- PointsBean (Session-scoped) -->
+  <managed-bean>
+    <managed-bean-name>pointsBean</managed-bean-name>
+    <managed-bean-class>programming.itmo.beans.PointsBean</managed-bean-class>
+    <managed-bean-scope>session</managed-bean-scope>
+    <managed-property>
+      <property-name>checkAreaUtil</property-name>
+      <value>#{checkAreaUtil}</value>
+    </managed-property>
+  </managed-bean>
+
+  <!-- навигация -->
+  <navigation-rule>
+    <from-view-id>/main.xhtml</from-view-id>
+
+    <navigation-case>
+      <from-outcome>main</from-outcome>
+      <to-view-id>/main.xhtml</to-view-id>
+      <redirect/>
+    </navigation-case>
+
+    <navigation-case>
+      <from-outcome>index</from-outcome>
+      <to-view-id>/index.xhtml</to-view-id>
+      <redirect/>
+    </navigation-case>
+  </navigation-rule>
+
+</faces-config>

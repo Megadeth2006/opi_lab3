@@ -1,0 +1,319 @@
+
+
+/* Заголовок */
+#check-point {
+    text-align: center;
+    font-family: Georgia, serif;
+    font-size: 42px;
+    font-weight: bold;
+    color: white;
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.9);
+    margin-bottom: 30px;
+    letter-spacing: 2px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 15px 40px;
+    border-radius: 8px;
+    display: inline-block;
+}
+
+/* Основная раскладка */
+.main-layout {
+    display: flex;
+    gap: 40px;
+    margin-top: 30px;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 0 20px;
+}
+
+.mainCl {
+    width: 100%;
+}
+
+/* Панель формы */
+.form-panel {
+    width: 320px;
+    background: rgba(255, 255, 255, 0.4);
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Блоки ввода */
+.input-block {
+    margin-bottom: 20px;
+}
+
+.input-label {
+    font-family: Georgia, serif;
+    font-size: 20px;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 8px;
+}
+
+/* Поля ввода */
+.mafia-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #34495e;
+    background: #fff;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 500;
+    box-sizing: border-box;
+}
+
+.mafia-input:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+.mafia-input::placeholder {
+    color: #95a5a6;
+}
+
+/* Чекбоксы */
+.ui-chkbox {
+    margin: 0 6px 6px 0;
+}
+
+.ui-chkbox-box {
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 4px !important;
+    border: 2px solid #34495e !important;
+    background: #fff !important;
+}
+
+.ui-chkbox-box:hover {
+    border-color: #3498db !important;
+}
+
+.ui-chkbox-box.ui-state-active {
+    background: #3498db !important;
+    border-color: #2980b9 !important;
+}
+
+.ui-chkbox-icon {
+    font-size: 16px !important;
+    color: white !important;
+}
+
+/* Панель графика */
+.graph-panel {
+    padding: 30px;
+
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.svg {
+    width: 450px;
+    height: 450px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    cursor: url("#{resource['media:cursors/cursor.cur']}"), crosshair !important;
+}
+
+.svg line {
+    stroke-width: 2;
+}
+
+.svg text {
+    font-family: Georgia, serif;
+    font-weight: bold;
+    fill: #2c3e50;
+}
+
+
+
+/* Кнопка Проверить */
+.ui-button {
+    margin-top: 15px !important;
+    padding: 14px 28px !important;
+    background: #4a90e2 !important;
+    color: white !important;
+    font-weight: bold !important;
+    font-size: 18px !important;
+    letter-spacing: 1px !important;
+    border: none !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+    text-transform: none;
+    cursor: url("#{resource['media:cursors/link.cur']}"), pointer !important;
+    width: 100%;
+}
+
+.ui-button:hover {
+    background: #3a7bc8 !important;
+    box-shadow: 0 5px 18px rgba(0, 0, 0, 0.5) !important;
+}
+
+.ui-button:active {
+    background: #2e6bb3 !important;
+}
+
+/* Кнопка назад */
+.mafia-back {
+    margin-top: 15px;
+    display: inline-block;
+    color: white;
+    font-size: 18px;
+    text-decoration: underline;
+    font-weight: normal;
+    padding: 5px 10px;
+    background: transparent;
+    border-radius: 0;
+    border: none;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+    cursor: url("#{resource['media:cursors/link.cur']}"), pointer !important;
+}
+
+.mafia-back:hover {
+    color: #a8d5ff;
+    text-decoration: underline;
+}
+
+/* Таблица результатов */
+.mafia-results {
+    margin-top: 30px;
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-radius: 12px !important;
+    border: none !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+.mafia-results .ui-panel-titlebar {
+    background: #34495e !important;
+    border: none !important;
+    border-radius: 10px 10px 0 0 !important;
+    color: white !important;
+    font-size: 20px !important;
+    font-weight: bold !important;
+    padding: 12px 20px !important;
+}
+
+.transparent-table {
+    background: transparent !important;
+}
+
+.transparent-table .ui-datatable-thead > tr > th {
+    background: #ecf0f1 !important;
+    color: #2c3e50 !important;
+    font-weight: bold !important;
+    border: none !important;
+    font-size: 15px !important;
+    padding: 10px !important;
+}
+
+.transparent-table .ui-datatable-data > tr > td {
+    background: #fff !important;
+    color: #2c3e50 !important;
+    border: 1px solid #ecf0f1 !important;
+    font-size: 14px !important;
+    padding: 8px !important;
+}
+
+.transparent-table .ui-datatable-data > tr:hover > td {
+    background: #f8f9fa !important;
+}
+
+/* Кнопка звука */
+#unmuteButton {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 24px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #2c3e50;
+    font-weight: bold;
+    font-size: 14px;
+    border: 2px solid #34495e;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+}
+
+#unmuteButton:hover {
+    background: #fff;
+    color: #3498db;
+    border-color: #3498db;
+}
+
+/* Убираем подчеркивание у ссылки soundButton */
+#soundButton,
+#soundButton:link,
+#soundButton:visited,
+#soundButton:hover,
+#soundButton:active,
+#soundButton:focus {
+    text-decoration: none !important;
+    color: inherit !important;
+    border: none !important;
+    outline: none !important;
+}
+
+#soundButton .mafia-button,
+#soundButton span {
+    text-decoration: none !important;
+    border-bottom: none !important;
+}
+
+/* Общие стили для screen */
+.screen {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 40px 20px;
+}
+
+/* Стили для responsesForm */
+#responsesForm {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Панель для лейблов */
+.ui-panelgrid {
+    width: 100%;
+}
+
+.ui-panelgrid td {
+    padding: 4px !important;
+}
+
+/* Стили для outputLabel */
+.ui-outputlabel {
+    color: #2c3e50 !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    margin-left: 4px;
+}
+
+/* Глобальное правило для всех ссылок внутри form-panel */
+.form-panel a,
+.form-panel a:link,
+.form-panel a:visited,
+.form-panel a:hover,
+.form-panel a:active {
+    text-decoration: none !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+}
+
+/* Курсоры для интерактивных элементов */
+input[type="checkbox"],
+input[type="text"],
+select,
+button,
+a,
+label {
+    cursor: url("#{resource['media:cursors/link.cur']}"), pointer;
+}
