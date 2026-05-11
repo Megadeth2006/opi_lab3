@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+    id 'war'
+}
+
+group = findProperty('app.group')
+version = findProperty('app.version')
+
+java {
+    sourceCompatibility = JavaVersion.toVersion(findProperty('java.source'))
+    targetCompatibility = JavaVersion.toVersion(findProperty('java.target'))
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    providedCompile 'javax:javaee-web-api:8.0.1'
+
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    testCompileOnly 'org.projectlombok:lombok:1.18.30'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
+
+    implementation 'org.primefaces:primefaces:10.0.0'
+    implementation 'com.google.code.gson:gson:2.11.0'
+    implementation 'org.hibernate:hibernate-core:5.6.15.Final'
+    implementation 'org.hibernate.validator:hibernate-validator:6.2.5.Final'
+    implementation 'org.postgresql:postgresql:42.5.4'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.0'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = findProperty('encoding')
+}
+
+tasks.withType(Javadoc).configureEach {
+    options.encoding = findProperty('encoding')
+    options.charSet = findProperty('encoding')
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.named('war') {
+    archiveBaseName = findProperty('app.archiveName')
+}
+
+apply from: 'labTasks.gradle'

@@ -1,6 +1,12 @@
 # Compiled class file
 *.class
 
+# Gradle / Maven / IDE build output
+build/
+.gradle/
+target/
+out/
+
 # Log file
 *.log
 
