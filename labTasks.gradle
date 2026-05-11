@@ -1,0 +1,232 @@
+// ===== Человек 1: базовая сборка =====
+
+tasks.register('compileLab') {
+    group = 'lab'
+    description = 'Compiles Java source code for the lab project.'
+    dependsOn tasks.named('compileJava')
+}
+
+tasks.register('buildLab') {
+    group = 'lab'
+    description = 'Compiles Java source code and packages it into a jar archive.'
+    dependsOn tasks.named('compileLab')
+    dependsOn tasks.named('jar')
+}
+
+tasks.register('cleanLab') {
+    group = 'lab'
+    description = 'Removes compiled classes and temporary build files.'
+    dependsOn tasks.named('clean')
+}
+
+tasks.register('testLab') {
+    group = 'lab'
+    description = 'Runs JUnit tests after building the lab project.'
+    dependsOn tasks.named('buildLab')
+    dependsOn tasks.named('test')
+}
+
+tasks.register('xml') {
+    group = 'lab'
+    description = 'Validates all XML files in the project.'
+
+    doLast {
+        def xmlFiles = fileTree(projectDir) {
+            include '**/*.xml'
+            exclude 'build/**'
+            exclude '.gradle/**'
+            exclude 'target/**'
+            exclude '.idea/**'
+        }
+
+        if (xmlFiles.isEmpty()) {
+            println 'XML files not found.'
+            return
+        }
+
+        def factory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+        factory.setFeature('http://apache.org/xml/features/nonvalidating/load-external-dtd', false)
+        factory.setFeature('http://xml.org/sax/features/external-general-entities', false)
+        factory.setFeature('http://xml.org/sax/features/external-parameter-entities', false)
+        factory.setXIncludeAware(false)
+        factory.setExpandEntityReferences(false)
+
+        xmlFiles.each { xmlFile ->
+            def relativePath = projectDir.toPath().relativize(xmlFile.toPath())
+
+            try {
+                def builder = factory.newDocumentBuilder()
+                builder.parse(xmlFile)
+                println "Valid XML: ${relativePath}"
+            } catch (Exception e) {
+                throw new GradleException("XML validation failed: ${relativePath}: ${e.message}", e)
+            }
+        }
+
+        println "XML validation completed. Checked files: ${xmlFiles.files.size()}"
+    }
+}
+
+tasks.register('native2ascii') {
+    group = 'lab'
+    description = 'Converts localization property files to ASCII copies.'
+
+    doLast {
+        def sourceDir = file(findProperty('native2ascii.src'))
+        def destinationDir = file(findProperty('native2ascii.dest'))
+
+        if (!sourceDir.exists()) {
+            throw new GradleException("Localization directory not found: ${sourceDir}")
+        }
+
+        def localizationFiles = fileTree(sourceDir) {
+            include '**/*.properties'
+        }
+
+        if (localizationFiles.isEmpty()) {
+            println "Localization files not found in ${sourceDir}"
+            return
+        }
+
+        destinationDir.mkdirs()
+
+        localizationFiles.each { sourceFile ->
+            def relativePath = sourceDir.toPath().relativize(sourceFile.toPath()).toString()
+            def destinationFile = new File(destinationDir, relativePath)
+            destinationFile.parentFile.mkdirs()
+
+            ant.native2ascii(
+                    src: sourceFile.parentFile,
+                    dest: destinationFile.parentFile,
+                    includes: sourceFile.name,
+                    encoding: findProperty('encoding')
+            )
+
+            println "native2ascii: ${projectDir.toPath().relativize(sourceFile.toPath())} -> ${projectDir.toPath().relativize(destinationFile.toPath())}"
+        }
+
+        println "native2ascii completed. Converted files: ${localizationFiles.files.size()}"
+    }
+}
+
+tasks.register('generateChecksums') {
+    group = 'lab'
+    description = 'Generates MD5 and SHA-1 checksums for project files.'
+
+    outputs.file(file(findProperty('checksums.file')))
+
+    doLast {
+        def checksumsFile = file(findProperty('checksums.file'))
+        checksumsFile.parentFile.mkdirs()
+
+        def digestFile = { File inputFile, String algorithm ->
+            def digest = java.security.MessageDigest.getInstance(algorithm)
+
+            inputFile.withInputStream { stream ->
+                byte[] buffer = new byte[8192]
+                int read
+
+                while ((read = stream.read(buffer)) != -1) {
+                    digest.update(buffer, 0, read)
+                }
+            }
+
+            digest.digest().collect { String.format('%02x', it & 0xff) }.join()
+        }
+
+        def projectFiles = fileTree(projectDir) {
+            include '**/*'
+            exclude 'build/**'
+            exclude '.gradle/**'
+            exclude 'target/**'
+            exclude 'out/**'
+            exclude '.idea/**'
+            exclude '.git/**'
+        }.files.findAll { it.isFile() }.sort { file ->
+            projectDir.toPath().relativize(file.toPath()).toString()
+        }
+
+        checksumsFile.withWriter(findProperty('encoding')) { writer ->
+            writer.println('File | MD5 | SHA-1')
+
+            projectFiles.each { projectFile ->
+                def relativePath = projectDir.toPath().relativize(projectFile.toPath())
+                writer.println("${relativePath} | ${digestFile(projectFile, 'MD5')} | ${digestFile(projectFile, 'SHA-1')}")
+            }
+        }
+
+        println "Checksums generated: ${projectDir.toPath().relativize(checksumsFile.toPath())}"
+        println "Checked files: ${projectFiles.size()}"
+    }
+}
+
+tasks.register('doc') {
+    group = 'lab'
+    description = 'Generates Javadoc, checksums, and packages them into the jar archive.'
+    dependsOn tasks.named('javadoc')
+    dependsOn tasks.named('generateChecksums')
+    dependsOn tasks.named('jar')
+}
+
+tasks.register('music') {
+    group = 'lab'
+    description = 'Plays music after a successful lab build.'
+    dependsOn tasks.named('buildLab')
+
+    doLast {
+        def musicFile = file(findProperty('music.file'))
+
+        if (!musicFile.exists()) {
+            throw new GradleException("Music file not found: ${musicFile}")
+        }
+
+        def osName = System.getProperty('os.name').toLowerCase()
+        def command
+
+        if (osName.contains('mac')) {
+            command = ['open', musicFile.absolutePath]
+        } else if (osName.contains('windows')) {
+            command = ['cmd', '/c', 'start', '', musicFile.absolutePath]
+        } else {
+            command = ['xdg-open', musicFile.absolutePath]
+        }
+
+        def process = new ProcessBuilder(command)
+                .inheritIO()
+                .start()
+        def exitCode = process.waitFor()
+
+        if (exitCode != 0) {
+            throw new GradleException("Music command failed with exit code ${exitCode}: ${command.join(' ')}")
+        }
+
+        println "Music started: ${projectDir.toPath().relativize(musicFile.toPath())}"
+    }
+}
+
+tasks.named('jar') {
+    dependsOn tasks.named('compileLab')
+    dependsOn tasks.named('javadoc')
+    dependsOn tasks.named('generateChecksums')
+    archiveBaseName = findProperty('app.archiveName')
+    archiveVersion = findProperty('app.version')
+
+    manifest {
+        attributes(
+                'Main-Class': findProperty('app.mainClass'),
+                'Implementation-Version': findProperty('app.version'),
+                'Created-By': findProperty('manifest.createdBy'),
+                'Checksums-File': findProperty('checksums.manifestPath')
+        )
+    }
+
+    from(file(findProperty('checksums.file'))) {
+        into 'META-INF'
+    }
+
+    from(tasks.named('javadoc').map { it.destinationDir }) {
+        into 'javadoc'
+    }
+}
+
+// ===== Человек 2: Git, SCP, history, team, alt =====
