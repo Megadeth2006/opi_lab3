@@ -66,6 +66,8 @@
     </target>
 
     <target name="compile" depends="init,validate-classpath">
+        <delete dir="${classes.dir}"/>
+        <mkdir dir="${classes.dir}"/>
         <javac srcdir="${compile.src.dir}"
                destdir="${classes.dir}"
                includeantruntime="false"
@@ -83,6 +85,8 @@
     </target>
 
     <target name="compile-tests" depends="compile,detect-tests" if="tests.present">
+        <delete dir="${test.classes.dir}"/>
+        <mkdir dir="${test.classes.dir}"/>
         <javac srcdir="${src.test.java.dir}"
                destdir="${test.classes.dir}"
                includeantruntime="false"

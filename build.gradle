@@ -1,0 +1,651 @@
+import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import javax.xml.parsers.DocumentBuilderFactory
+
+plugins {
+    id 'java'
+    id 'application'
+}
+
+def loadProperties = { File file, boolean optional = false ->
+    def props = new Properties()
+    if (!file.exists()) {
+        if (optional) {
+            return props
+        }
+        throw new GradleException("Required properties file was not found: ${file}")
+    }
+    file.withInputStream { props.load(it) }
+    props
+}
+
+def labProps = loadProperties(file('build.properties'))
+def envProps = loadProperties(file(labProps.getProperty('env.properties.file')), true)
+
+group = labProps.getProperty('project.group')
+version = labProps.getProperty('project.version')
+
+application {
+    mainClass = labProps.getProperty('project.main.class')
+}
+
+def m2Home = System.getenv('USERPROFILE') ?: System.properties['user.home']
+def m2Repository = new File(m2Home, '.m2/repository')
+def m2Jar = { String propertyName ->
+    new File(m2Repository, labProps.getProperty(propertyName).replace('/', File.separator)).absolutePath
+}
+def stagedLibDir = file("$buildDir/tool-libs")
+def stagedLib = { String propertyName ->
+    new File(stagedLibDir, new File(labProps.getProperty(propertyName)).name)
+}
+
+def mainCompileLibs = files(
+    stagedLib('lib.javaee'),
+    stagedLib('lib.lombok'),
+    stagedLib('lib.primefaces'),
+    stagedLib('lib.gson')
+)
+
+def runtimeLibs = files(
+    stagedLib('lib.hibernate'),
+    stagedLib('lib.validator'),
+    stagedLib('lib.postgresql')
+)
+
+def testLibs = files(
+    stagedLib('lib.junit.api'),
+    stagedLib('lib.junit.engine'),
+    stagedLib('lib.junit.platform.launcher'),
+    stagedLib('lib.junit.platform.engine'),
+    stagedLib('lib.junit.platform.commons'),
+    stagedLib('lib.apiguardian'),
+    stagedLib('lib.opentest4j')
+)
+
+sourceSets {
+    main {
+        java.srcDirs = [labProps.getProperty('src.main.java.dir')]
+        resources.srcDirs = [labProps.getProperty('src.main.resources.dir')]
+    }
+    test {
+        java.srcDirs = [labProps.getProperty('src.test.java.dir')]
+    }
+    alt {
+        java.srcDirs = [labProps.getProperty('alt.src.dir')]
+        resources.srcDirs = [labProps.getProperty('src.main.resources.dir')]
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = Integer.parseInt(labProps.getProperty('java.release'))
+}
+
+tasks.register('prepareLocalLibs', Sync) {
+    from files(
+        m2Jar('lib.javaee'),
+        m2Jar('lib.lombok'),
+        m2Jar('lib.primefaces'),
+        m2Jar('lib.gson'),
+        m2Jar('lib.hibernate'),
+        m2Jar('lib.validator'),
+        m2Jar('lib.postgresql'),
+        m2Jar('lib.junit.api'),
+        m2Jar('lib.junit.engine'),
+        m2Jar('lib.junit.platform.launcher'),
+        m2Jar('lib.junit.platform.engine'),
+        m2Jar('lib.junit.platform.commons'),
+        m2Jar('lib.apiguardian'),
+        m2Jar('lib.opentest4j')
+    )
+    into stagedLibDir
+}
+
+tasks.named('compileJava', JavaCompile) {
+    dependsOn tasks.named('prepareLocalLibs')
+    classpath = mainCompileLibs
+    options.annotationProcessorPath = files(stagedLib('lib.lombok'))
+}
+
+tasks.named('compileTestJava', JavaCompile) {
+    dependsOn tasks.named('prepareLocalLibs')
+    classpath = files(sourceSets.main.output, sourceSets.main.resources, mainCompileLibs, testLibs)
+    options.annotationProcessorPath = files(stagedLib('lib.lombok'))
+}
+
+tasks.named('compileAltJava', JavaCompile) {
+    dependsOn tasks.named('prepareLocalLibs')
+    classpath = files(sourceSets.main.output, sourceSets.main.resources, mainCompileLibs)
+    options.annotationProcessorPath = files(stagedLib('lib.lombok'))
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    dependsOn tasks.named('jar')
+    classpath = files(sourceSets.main.output, sourceSets.test.output, sourceSets.main.resources, mainCompileLibs, runtimeLibs, testLibs)
+    testClassesDirs = sourceSets.test.output.classesDirs
+    reports.junitXml.required = true
+    reports.html.required = true
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+    }
+}
+
+def gitCommand = labProps.getProperty('git.command')
+def gradleCommand = labProps.getProperty('gradle.command')
+def gitArgs = { List<String> args -> [gitCommand, '-c', 'safe.directory=*'] + args }
+
+def splitArgs = { String value ->
+    value == null || value.trim().isEmpty() ? [] : value.trim().split(/\s+/).toList()
+}
+
+def execCapture = { List<String> command, File workingDir = project.projectDir, boolean ignoreExitValue = false ->
+    def stdout = new ByteArrayOutputStream()
+    def stderr = new ByteArrayOutputStream()
+    def result = exec {
+        commandLine command
+        this.workingDir = workingDir
+        standardOutput = stdout
+        errorOutput = stderr
+        ignoreExitValue = ignoreExitValue
+    }
+    [
+        exitValue: result.exitValue,
+        stdout   : stdout.toString('UTF-8').trim(),
+        stderr   : stderr.toString('UTF-8').trim()
+    ]
+}
+
+def calculateProjectDigests = {
+    def files = files(
+        fileTree(labProps.getProperty('src.main.java.dir')),
+        fileTree(labProps.getProperty('src.main.resources.dir')),
+        fileTree(labProps.getProperty('src.main.webapp.dir')),
+        fileTree(labProps.getProperty('src.test.java.dir')),
+        files('build.gradle', 'build.properties', labProps.getProperty('env.properties.file'))
+    ).files.findAll { it.exists() && it.isFile() }.sort { a, b -> a.path <=> b.path }
+
+    def md5 = MessageDigest.getInstance('MD5')
+    def sha1 = MessageDigest.getInstance('SHA-1')
+
+    files.each { current ->
+        def bytes = current.bytes
+        md5.update(bytes)
+        sha1.update(bytes)
+    }
+
+    [
+        md5 : md5.digest().encodeHex().toString(),
+        sha1: sha1.digest().encodeHex().toString()
+    ]
+}
+
+def renameJavaSource = { File rootDir, String oldName, String newName ->
+    def matches = fileTree(rootDir).matching { include "**/${oldName}.java" }.files
+    matches.each { sourceFile ->
+        def renamed = new File(sourceFile.parentFile, "${newName}.java")
+        if (!sourceFile.renameTo(renamed)) {
+            throw new GradleException("Failed to rename ${sourceFile.name} to ${renamed.name}")
+        }
+    }
+}
+
+def stageGradleFiles = { File targetDir ->
+    copy {
+        from('build.gradle', 'build.properties', labProps.getProperty('env.properties.file'), 'settings.gradle')
+        into targetDir
+    }
+}
+
+tasks.named('processResources') {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named('jar', Jar) {
+    archiveFileName = labProps.getProperty('jar.name')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+            'Manifest-Version': '1.0',
+            'Implementation-Title': labProps.getProperty('project.name'),
+            'Implementation-Version': project.version,
+            'Main-Class': application.mainClass.get(),
+            'Build-Time': new SimpleDateFormat('yyyy-MM-dd HH:mm:ss').format(new Date())
+        )
+    }
+    from(labProps.getProperty('src.main.webapp.dir')) {
+        into labProps.getProperty('webapp.archive.prefix')
+    }
+}
+
+tasks.register('compile') {
+    group = 'lab'
+    description = 'Compiles project sources.'
+    dependsOn tasks.named('classes')
+}
+
+tasks.named('build') {
+    group = 'lab'
+    description = 'Builds the project and packages an executable jar archive.'
+    setDependsOn([tasks.named('compile'), tasks.named('jar')])
+}
+
+tasks.named('clean') {
+    group = 'lab'
+    description = 'Removes compiled classes and all temporary build files.'
+}
+
+tasks.register('xml') {
+    group = 'lab'
+    description = 'Validates all XML files in the project.'
+
+    doLast {
+        def factory = DocumentBuilderFactory.newInstance()
+        factory.setNamespaceAware(true)
+
+        fileTree(projectDir).matching {
+            include '**/*.xml'
+        }.files.each { current ->
+            try {
+                factory.newDocumentBuilder().parse(current)
+                logger.lifecycle("XML valid: ${current}")
+            } catch (Exception ex) {
+                throw new GradleException("Invalid XML file: ${current}", ex)
+            }
+        }
+    }
+}
+
+tasks.register('scp', Exec) {
+    group = 'lab'
+    description = 'Transfers the built jar archive to a remote server over SCP.'
+    dependsOn tasks.named('build')
+
+    commandLine(
+        labProps.getProperty('scp.command'),
+        '-P',
+        labProps.getProperty('scp.port'),
+        tasks.named('jar', Jar).flatMap { it.archiveFile }.get().asFile.absolutePath,
+        "${labProps.getProperty('scp.user')}@${labProps.getProperty('scp.host')}:${labProps.getProperty('scp.remote.dir')}"
+    )
+}
+
+tasks.register('native2ascii') {
+    group = 'lab'
+    description = 'Creates native2ascii copies for localization property files.'
+
+    inputs.dir(labProps.getProperty('localization.dir'))
+    outputs.dir(labProps.getProperty('native2ascii.dir'))
+
+    doLast {
+        ant.native2ascii(
+            src: file(labProps.getProperty('localization.dir')),
+            dest: file(labProps.getProperty('native2ascii.dir')),
+            includes: '**/*.properties',
+            encoding: 'UTF-8'
+        )
+    }
+}
+
+tasks.named('javadoc') {
+    dependsOn tasks.named('prepareLocalLibs')
+    classpath = mainCompileLibs
+    options.encoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+    options.memberLevel = JavadocMemberLevel.PUBLIC
+}
+
+tasks.register('doc') {
+    group = 'lab'
+    description = 'Adds project checksums to MANIFEST.MF and embeds generated Javadoc into the jar.'
+    dependsOn tasks.named('jar'), tasks.named('javadoc')
+
+    doLast {
+        def digestValues = calculateProjectDigests()
+        def jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
+        def manifestFile = file("$buildDir/tmp/doc-manifest/MANIFEST.MF")
+
+        manifestFile.parentFile.mkdirs()
+        manifestFile.text = (
+            "Manifest-Version: 1.0\r\n" +
+            "Implementation-Title: ${labProps.getProperty('project.name')}\r\n" +
+            "Implementation-Version: ${project.version}\r\n" +
+            "Main-Class: ${application.mainClass.get()}\r\n" +
+            "Project-MD5: ${digestValues.md5}\r\n" +
+            "Project-SHA1: ${digestValues.sha1}\r\n" +
+            "\r\n"
+        )
+
+        delete(jarFile)
+        ant.jar(destfile: jarFile, manifest: manifestFile) {
+            sourceSets.main.output.classesDirs.files.each { dir ->
+                fileset(dir: dir)
+            }
+            if (sourceSets.main.output.resourcesDir?.exists()) {
+                fileset(dir: sourceSets.main.output.resourcesDir)
+            }
+            zipfileset(dir: file(labProps.getProperty('src.main.webapp.dir')), prefix: 'webapp')
+            zipfileset(dir: tasks.named('javadoc').get().destinationDir, prefix: 'docs/javadoc')
+        }
+        logger.lifecycle("Updated jar with Javadoc and checksums: ${jarFile}")
+    }
+}
+
+tasks.register('music') {
+    group = 'lab'
+    description = 'Launches music playback after a successful build.'
+    dependsOn tasks.named('build')
+
+    doLast {
+        exec {
+            commandLine(
+                labProps.getProperty('music.command'),
+                '-NoProfile',
+                '-ExecutionPolicy',
+                'Bypass',
+                '-Command',
+                "Start-Process -FilePath '${file(labProps.getProperty('music.file')).absolutePath}'"
+            )
+        }
+    }
+}
+
+tasks.register('env') {
+    group = 'lab'
+    description = 'Builds and runs the jar with an alternative Java environment.'
+    dependsOn tasks.named('build')
+
+    doLast {
+        def javaHome = envProps.getProperty('java_home')
+        if (!javaHome) {
+            throw new GradleException("Property java_home is not defined in ${labProps.getProperty('env.properties.file')}")
+        }
+
+        def javaExecutable = new File(javaHome, 'bin/java.exe')
+        if (!javaExecutable.exists()) {
+            javaExecutable = new File(javaHome, 'bin/java')
+        }
+        if (!javaExecutable.exists()) {
+            throw new GradleException("Java executable was not found in ${javaHome}")
+        }
+
+        def archivePath = tasks.named('jar', Jar).get().archiveFile.get().asFile.absolutePath
+        def command = [javaExecutable.absolutePath] + splitArgs(envProps.getProperty('vm_args')) + ['-jar', archivePath]
+
+        exec {
+            commandLine command
+        }
+    }
+}
+
+tasks.register('report') {
+    group = 'lab'
+    description = 'Commits JUnit XML reports to Git after successful tests.'
+    dependsOn tasks.named('test')
+
+    doLast {
+        def xmlDir = tasks.named('test', Test).get().reports.junitXml.outputLocation.get().asFile
+        def xmlFiles = fileTree(xmlDir).matching { include '**/*.xml' }.files
+        if (xmlFiles.isEmpty()) {
+            throw new GradleException("JUnit XML reports were not found in ${xmlDir}")
+        }
+
+        exec {
+            commandLine (gitArgs(['add']) + xmlFiles.collect { project.relativePath(it) })
+        }
+        exec {
+            commandLine gitArgs(['commit', '-m', labProps.getProperty('git.commit.message.report')])
+            ignoreExitValue = true
+        }
+    }
+}
+
+tasks.register('diff') {
+    group = 'lab'
+    description = 'Commits changes to Git only when tracked classes were not modified.'
+
+    doLast {
+        def trackedFile = file(labProps.getProperty('tracked.classes.file'))
+        if (!trackedFile.exists()) {
+            throw new GradleException("Tracked class list was not found: ${trackedFile}")
+        }
+
+        def tracked = trackedFile.readLines()
+            .collect { it.trim().replace('\\', '/') }
+            .findAll { !it.isEmpty() && !it.startsWith('#') }
+
+        def status = execCapture(gitArgs(['status', '--porcelain']), projectDir, true)
+        if (status.exitValue != 0) {
+            throw new GradleException(status.stderr ?: 'git status failed')
+        }
+
+        def changed = status.stdout.readLines()
+            .findAll { !it.trim().isEmpty() }
+            .collect { line -> line.length() > 3 ? line.substring(3).trim().replace('\\', '/') : '' }
+            .findAll { !it.isEmpty() }
+
+        if (changed.isEmpty()) {
+            logger.lifecycle('No local changes detected.')
+            return
+        }
+
+        def blocked = changed.findAll { candidate ->
+            tracked.any { trackedPath -> candidate == trackedPath || candidate.endsWith(trackedPath) }
+        }
+
+        if (!blocked.isEmpty()) {
+            logger.lifecycle("Commit skipped because tracked classes were modified: ${blocked}")
+            return
+        }
+
+        exec {
+            commandLine gitArgs(['add', '--all'])
+        }
+        exec {
+            commandLine gitArgs(['commit', '-m', labProps.getProperty('git.commit.message.diff')])
+            ignoreExitValue = true
+        }
+    }
+}
+
+tasks.register('history') {
+    group = 'lab'
+    description = 'Searches previous Git revisions until compilation succeeds and stores the diff for the next broken revision.'
+
+    doLast {
+        def tempWorktree = file(labProps.getProperty('history.dir') + '/worktree')
+        delete(tempWorktree)
+
+        exec {
+            commandLine gitArgs(['worktree', 'add', '--force', '--detach', tempWorktree.absolutePath, 'HEAD'])
+        }
+
+        try {
+            def revisions = execCapture(gitArgs(['-C', tempWorktree.absolutePath, 'rev-list', 'HEAD']), tempWorktree, false)
+                .stdout
+                .readLines()
+                .findAll { !it.trim().isEmpty() }
+
+            if (revisions.isEmpty()) {
+                throw new GradleException('No Git revisions were found for the history task.')
+            }
+
+            String workingRevision = null
+            String nextBrokenRevision = null
+
+            for (int i = 0; i < revisions.size(); i++) {
+                def revision = revisions[i]
+                exec {
+                    commandLine gitArgs(['-C', tempWorktree.absolutePath, 'checkout', '--force', revision])
+                }
+                stageGradleFiles(tempWorktree)
+
+                def compileResult = execCapture(
+                    [gradleCommand, '--offline', 'compile'],
+                    tempWorktree,
+                    true
+                )
+
+                if (compileResult.exitValue == 0) {
+                    workingRevision = revision
+                    if (i > 0) {
+                        nextBrokenRevision = revisions[i - 1]
+                    }
+                    break
+                }
+            }
+
+            if (!workingRevision) {
+                logger.lifecycle('No compilable revision was found in Git history.')
+                return
+            }
+
+            if (nextBrokenRevision) {
+                def diffResult = execCapture(
+                    gitArgs(['-C', tempWorktree.absolutePath, 'diff', workingRevision, nextBrokenRevision]),
+                    tempWorktree,
+                    false
+                )
+                def diffFile = file(labProps.getProperty('history.diff.file'))
+                diffFile.parentFile.mkdirs()
+                diffFile.text = diffResult.stdout
+                logger.lifecycle("History diff saved to ${diffFile}")
+            } else {
+                logger.lifecycle("Current revision already compiles: ${workingRevision}")
+            }
+        } finally {
+            exec {
+                commandLine gitArgs(['worktree', 'remove', '--force', tempWorktree.absolutePath])
+                ignoreExitValue = true
+            }
+        }
+    }
+}
+
+tasks.register('team') {
+    group = 'lab'
+    description = 'Builds the two previous Git revisions and packages their jar archives into a zip file.'
+
+    doLast {
+        def teamRoot = file(labProps.getProperty('team.dir'))
+        def exportRoot = new File(teamRoot, 'worktrees')
+        def jarRoot = new File(teamRoot, 'artifacts')
+        def zipFile = new File(teamRoot, 'team-revisions.zip')
+
+        delete(teamRoot)
+        exportRoot.mkdirs()
+        jarRoot.mkdirs()
+
+        def revisions = execCapture(gitArgs(['rev-list', '--max-count=2', 'HEAD~1']), projectDir, false)
+            .stdout
+            .readLines()
+            .findAll { !it.trim().isEmpty() }
+
+        if (revisions.size() < 2) {
+            throw new GradleException('At least two previous Git revisions are required for the team task.')
+        }
+
+        revisions.each { revision ->
+            def worktreeDir = new File(exportRoot, revision.take(7))
+            exec {
+                commandLine gitArgs(['worktree', 'add', '--force', '--detach', worktreeDir.absolutePath, revision])
+            }
+
+            try {
+                stageGradleFiles(worktreeDir)
+                def buildResult = execCapture([gradleCommand, '--offline', 'build'], worktreeDir, true)
+                if (buildResult.exitValue != 0) {
+                    throw new GradleException("Failed to build revision ${revision}: ${buildResult.stderr}")
+                }
+
+                def builtJar = new File(worktreeDir, "build/libs/${labProps.getProperty('jar.name')}")
+                if (!builtJar.exists()) {
+                    throw new GradleException("Jar archive was not produced for revision ${revision}")
+                }
+
+                copy {
+                    from builtJar
+                    into jarRoot
+                    rename { "revision-${revision.take(7)}-${it}" }
+                }
+            } finally {
+                exec {
+                    commandLine gitArgs(['worktree', 'remove', '--force', worktreeDir.absolutePath])
+                    ignoreExitValue = true
+                }
+            }
+        }
+
+        ant.zip(destfile: zipFile) {
+            fileset(dir: jarRoot)
+        }
+        logger.lifecycle("Team archive created: ${zipFile}")
+    }
+}
+
+tasks.register('prepareAltSources', Sync) {
+    group = 'lab'
+    description = 'Copies sources for the alternative build and applies configured replacements.'
+
+    from sourceSets.main.java.srcDirs
+    into file(labProps.getProperty('alt.src.dir'))
+
+    doLast {
+        def altDir = destinationDir
+
+        ant.replace(
+            dir: altDir,
+            includes: '**/*.java',
+            token: labProps.getProperty('alt.replace.token.1'),
+            value: labProps.getProperty('alt.replace.value.1')
+        )
+        ant.replace(
+            dir: altDir,
+            includes: '**/*.java',
+            token: labProps.getProperty('alt.replace.token.2'),
+            value: labProps.getProperty('alt.replace.value.2')
+        )
+        ant.replaceregexp(
+            byline: true,
+            match: labProps.getProperty('alt.regex.match.1'),
+            replace: labProps.getProperty('alt.regex.replace.1')
+        ) {
+            fileset(dir: altDir, includes: '**/*.java')
+        }
+
+        renameJavaSource(altDir, labProps.getProperty('alt.replace.token.1'), labProps.getProperty('alt.replace.value.1'))
+        renameJavaSource(altDir, labProps.getProperty('alt.replace.token.2'), labProps.getProperty('alt.replace.value.2'))
+    }
+}
+
+tasks.named('compileAltJava') {
+    dependsOn tasks.named('prepareAltSources')
+}
+
+tasks.register('altJar', Jar) {
+    group = 'lab'
+    description = 'Packages the alternative source set into a jar archive.'
+    dependsOn tasks.named('build'), tasks.named('classes'), tasks.named('altClasses')
+
+    archiveFileName = labProps.getProperty('alt.jar.name')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+            'Manifest-Version': '1.0',
+            'Implementation-Title': "${labProps.getProperty('project.name')}-alt",
+            'Implementation-Version': project.version,
+            'Main-Class': application.mainClass.get()
+        )
+    }
+
+    from sourceSets.alt.output
+    from(labProps.getProperty('src.main.webapp.dir')) {
+        into labProps.getProperty('webapp.archive.prefix')
+    }
+}
+
+tasks.register('alt') {
+    group = 'lab'
+    description = 'Creates an alternative version of the program with renamed classes and variables.'
+    dependsOn tasks.named('altJar')
+}
