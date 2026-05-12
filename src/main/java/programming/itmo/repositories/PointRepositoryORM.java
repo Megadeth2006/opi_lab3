@@ -7,6 +7,7 @@ import javax.persistence.EntityManagerFactory;
 import javax.persistence.Persistence;
 import lombok.Getter;
 import lombok.Setter;
+import programming.itmo.config.AppStrings;
 import programming.itmo.entities.PointEntity;
 import programming.itmo.model.PointDTO;
 
@@ -17,7 +18,7 @@ public class PointRepositoryORM implements PointRepository{
 
     public PointRepositoryORM() {
         EntityManagerFactory entityManagerFactory = Persistence.createEntityManagerFactory(
-                "pointsPU");
+                AppStrings.get("repository.persistence.unit"));
         entityManager = entityManagerFactory.createEntityManager();
     }
     @Override
@@ -31,7 +32,7 @@ public class PointRepositoryORM implements PointRepository{
 
     @Override
     public List<PointDTO> getAllPoints() {
-        List<PointEntity> entities = entityManager.createQuery("select e from PointEntity e",
+        List<PointEntity> entities = entityManager.createQuery(AppStrings.get("repository.query.selectAll"),
                 PointEntity.class).getResultList();
 
         return entities.stream().map(e -> new PointDTO(e.getX(), e.getY(), e.getR(),

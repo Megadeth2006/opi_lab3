@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="opi-lab3-ant" default="build" basedir=".">
+    <property file="build.properties"/>
+
+    <property name="compile.src.dir" value="${src.main.java.dir}"/>
+    <property name="jar.output.file" value="${dist.dir}/${jar.name}"/>
+
+    <path id="compile.classpath">
+        <pathelement location="${lib.javaee}"/>
+        <pathelement location="${lib.lombok}"/>
+        <pathelement location="${lib.primefaces}"/>
+        <pathelement location="${lib.gson}"/>
+    </path>
+
+    <path id="test.classpath">
+        <path refid="compile.classpath"/>
+        <pathelement location="${classes.dir}"/>
+        <pathelement location="${lib.junit.api}"/>
+        <pathelement location="${lib.junit.engine}"/>
+        <pathelement location="${lib.junit.commons}"/>
+        <pathelement location="${lib.junit.platform.engine}"/>
+        <pathelement location="${lib.junit.platform.launcher}"/>
+        <pathelement location="${lib.apiguardian}"/>
+        <pathelement location="${lib.opentest4j}"/>
+    </path>
+
+    <target name="init">
+        <mkdir dir="${build.root.dir}"/>
+        <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${test.classes.dir}"/>
+        <mkdir dir="${dist.dir}"/>
+        <mkdir dir="${temp.dir}"/>
+        <mkdir dir="${reports.dir}"/>
+        <mkdir dir="${javadoc.dir}"/>
+        <mkdir dir="${native2ascii.dir}"/>
+        <mkdir dir="${alt.src.dir}"/>
+        <mkdir dir="${team.dir}"/>
+        <mkdir dir="${history.dir}"/>
+    </target>
+
+    <target name="clean">
+        <delete dir="${build.root.dir}"/>
+        <delete dir="target"/>
+    </target>
+
+    <target name="validate-classpath">
+        <available file="${lib.javaee}" property="classpath.ok.javaee"/>
+        <available file="${lib.lombok}" property="classpath.ok.lombok"/>
+        <available file="${lib.primefaces}" property="classpath.ok.primefaces"/>
+        <available file="${lib.gson}" property="classpath.ok.gson"/>
+        <fail unless="classpath.ok.javaee">Missing dependency: ${lib.javaee}</fail>
+        <fail unless="classpath.ok.lombok">Missing dependency: ${lib.lombok}</fail>
+        <fail unless="classpath.ok.primefaces">Missing dependency: ${lib.primefaces}</fail>
+        <fail unless="classpath.ok.gson">Missing dependency: ${lib.gson}</fail>
+    </target>
+
+    <target name="prepare-manifest" depends="init">
+        <copy file="${manifest.template.file}"
+              tofile="${temp.dir}/MANIFEST.MF">
+            <filterset>
+                <filter token="project.name" value="${project.name}"/>
+                <filter token="project.version" value="${project.version}"/>
+                <filter token="project.main.class" value="${project.main.class}"/>
+            </filterset>
+        </copy>
+    </target>
+
+    <target name="compile" depends="init,validate-classpath">
+        <delete dir="${classes.dir}"/>
+        <mkdir dir="${classes.dir}"/>
+        <javac srcdir="${compile.src.dir}"
+               destdir="${classes.dir}"
+               includeantruntime="false"
+               debug="true"
+               encoding="UTF-8"
+               release="${javac.release}"
+               fork="true"
+               executable="${tool.javac.executable}">
+            <classpath refid="compile.classpath"/>
+        </javac>
+    </target>
+
+    <target name="detect-tests">
+        <available file="${src.test.java.dir}" type="dir" property="tests.present"/>
+    </target>
+
+    <target name="compile-tests" depends="compile,detect-tests" if="tests.present">
+        <delete dir="${test.classes.dir}"/>
+        <mkdir dir="${test.classes.dir}"/>
+        <javac srcdir="${src.test.java.dir}"
+               destdir="${test.classes.dir}"
+               includeantruntime="false"
+               debug="true"
+               encoding="UTF-8"
+               release="${javac.release}"
+               fork="true"
+               executable="${tool.javac.executable}">
+            <classpath refid="test.classpath"/>
+        </javac>
+    </target>
+
+    <target name="copy-main-resources" depends="init">
+        <copy todir="${classes.dir}">
+            <fileset dir="${src.main.resources.dir}" erroronmissingdir="false"/>
+        </copy>
+    </target>
+
+    <target name="copy-webapp" depends="init">
+        <copy todir="${temp.dir}/webapp">
+            <fileset dir="${src.main.webapp.dir}" erroronmissingdir="false"/>
+        </copy>
+    </target>
+
+    <target name="package-jar" depends="prepare-manifest,copy-main-resources,copy-webapp">
+        <jar destfile="${jar.output.file}" manifest="${temp.dir}/MANIFEST.MF">
+            <fileset dir="${classes.dir}"/>
+            <zipfileset dir="${temp.dir}/webapp" prefix="webapp"/>
+        </jar>
+    </target>
+
+    <target name="build" depends="compile,package-jar"/>
+
+    <target name="test" depends="build,compile-tests">
+        <mkdir dir="${reports.dir}/junit"/>
+        <junitlauncher haltOnFailure="true" printSummary="true">
+            <classpath refid="test.classpath"/>
+            <testclasses outputdir="${reports.dir}/junit">
+                <fileset dir="${test.classes.dir}">
+                    <include name="**/*Test.class"/>
+                </fileset>
+                <listener type="legacy-xml" sendSysOut="true" sendSysErr="true"/>
+            </testclasses>
+        </junitlauncher>
+    </target>
+
+    <target name="xml">
+        <xmlvalidate lenient="true" failonerror="true" warn="true">
+            <fileset dir="${basedir}" includes="**/*.xml"/>
+        </xmlvalidate>
+    </target>
+
+    <target name="scp" depends="build">
+        <exec executable="${tool.scp.executable}" failonerror="true">
+            <arg value="-P"/>
+            <arg value="${scp.port}"/>
+            <arg path="${jar.output.file}"/>
+            <arg value="${scp.user}@${scp.host}:${scp.remote.dir}"/>
+        </exec>
+    </target>
+
+    <target name="native2ascii" depends="init">
+        <copy todir="${native2ascii.dir}/src">
+            <fileset dir="${localization.dir}" includes="**/*.properties"/>
+        </copy>
+        <native2ascii src="${native2ascii.dir}/src"
+                      dest="${native2ascii.dir}/ascii"
+                      includes="**/*.properties"
+                      encoding="UTF-8"/>
+    </target>
+
+    <target name="javadoc" depends="init">
+        <javadoc sourcepath="${src.main.java.dir}"
+                 destdir="${javadoc.dir}"
+                 encoding="UTF-8"
+                 docencoding="UTF-8"
+                 charset="UTF-8"
+                 useexternalfile="true"
+                 failonerror="true">
+            <classpath refid="compile.classpath"/>
+        </javadoc>
+    </target>
+
+    <target name="checksum-archive" depends="init">
+        <zip destfile="${temp.dir}/project-content.zip">
+            <zipfileset dir="${src.main.java.dir}" prefix="src/main/java"/>
+            <zipfileset dir="${src.main.resources.dir}" prefix="src/main/resources"/>
+            <zipfileset dir="${src.main.webapp.dir}" prefix="src/main/webapp"/>
+            <zipfileset dir="${src.test.java.dir}" prefix="src/test/java" erroronmissingdir="false"/>
+            <zipfileset file="build.xml" fullpath="build.xml"/>
+            <zipfileset file="build.properties" fullpath="build.properties"/>
+        </zip>
+        <checksum file="${temp.dir}/project-content.zip" algorithm="MD5" property="project.md5"/>
+        <checksum file="${temp.dir}/project-content.zip" algorithm="SHA-1" property="project.sha1"/>
+        <echo file="${temp.dir}/checksums.txt">MD5=${project.md5}${line.separator}SHA1=${project.sha1}${line.separator}</echo>
+    </target>
+
+    <target name="prepare-doc-manifest" depends="prepare-manifest,checksum-archive">
+        <copy file="${temp.dir}/MANIFEST.MF" tofile="${temp.dir}/MANIFEST-doc.MF"/>
+        <manifest file="${temp.dir}/MANIFEST-doc.MF" mode="update">
+            <attribute name="Project-MD5" value="${project.md5}"/>
+            <attribute name="Project-SHA1" value="${project.sha1}"/>
+        </manifest>
+    </target>
+
+    <target name="package-doc-jar" depends="compile,copy-main-resources,copy-webapp,javadoc,prepare-doc-manifest">
+        <delete file="${jar.output.file}"/>
+        <jar destfile="${jar.output.file}" manifest="${temp.dir}/MANIFEST-doc.MF">
+            <fileset dir="${classes.dir}"/>
+            <zipfileset dir="${temp.dir}/webapp" prefix="webapp"/>
+            <zipfileset dir="${javadoc.dir}" prefix="docs/javadoc"/>
+            <zipfileset file="${temp.dir}/checksums.txt" fullpath="docs/checksums.txt"/>
+        </jar>
+    </target>
+
+    <target name="doc" depends="package-doc-jar"/>
+
+    <target name="music" depends="build">
+        <exec executable="${tool.powershell.executable}" failonerror="true">
+            <arg value="-NoProfile"/>
+            <arg value="-ExecutionPolicy"/>
+            <arg value="Bypass"/>
+            <arg value="-Command"/>
+            <arg value="Start-Process -FilePath '${music.file}' -WindowStyle Hidden"/>
+        </exec>
+    </target>
+
+    <target name="env" depends="build">
+        <exec executable="${env.java.home}/bin/java" failonerror="false">
+            <arg line="${env.jvm.args}"/>
+            <arg value="-jar"/>
+            <arg path="${jar.output.file}"/>
+        </exec>
+    </target>
+
+    <target name="report" depends="test">
+        <exec executable="${tool.powershell.executable}" failonerror="true">
+            <arg value="-NoProfile"/>
+            <arg value="-ExecutionPolicy"/>
+            <arg value="Bypass"/>
+            <arg value="-File"/>
+            <arg path="tools/report.ps1"/>
+            <arg value="-ReportsDir"/>
+            <arg path="${reports.dir}/junit"/>
+            <arg value="-SvnExecutable"/>
+            <arg value="${tool.svn.executable}"/>
+            <arg value="-CommitMessage"/>
+            <arg value="${svn.commit.message.report}"/>
+        </exec>
+    </target>
+
+    <target name="diff">
+        <exec executable="${tool.powershell.executable}" failonerror="true">
+            <arg value="-NoProfile"/>
+            <arg value="-ExecutionPolicy"/>
+            <arg value="Bypass"/>
+            <arg value="-File"/>
+            <arg path="tools/diff.ps1"/>
+            <arg value="-ProtectedListFile"/>
+            <arg path="${protected.classes.file}"/>
+            <arg value="-SvnExecutable"/>
+            <arg value="${tool.svn.executable}"/>
+            <arg value="-CommitMessage"/>
+            <arg value="${svn.commit.message.diff}"/>
+        </exec>
+    </target>
+
+    <target name="history">
+        <exec executable="${tool.powershell.executable}" failonerror="true">
+            <arg value="-NoProfile"/>
+            <arg value="-ExecutionPolicy"/>
+            <arg value="Bypass"/>
+            <arg value="-File"/>
+            <arg path="tools/history.ps1"/>
+            <arg value="-ProjectDir"/>
+            <arg path="${basedir}"/>
+            <arg value="-AntExecutable"/>
+            <arg value="${tool.ant.executable}"/>
+            <arg value="-BuildFile"/>
+            <arg value="build.xml"/>
+            <arg value="-SvnExecutable"/>
+            <arg value="${tool.svn.executable}"/>
+            <arg value="-DiffOutputFile"/>
+            <arg path="${history.dir}/history-diff.txt"/>
+        </exec>
+    </target>
+
+    <target name="team">
+        <exec executable="${tool.powershell.executable}" failonerror="true">
+            <arg value="-NoProfile"/>
+            <arg value="-ExecutionPolicy"/>
+            <arg value="Bypass"/>
+            <arg value="-File"/>
+            <arg path="tools/team.ps1"/>
+            <arg value="-ProjectDir"/>
+            <arg path="${basedir}"/>
+            <arg value="-AntExecutable"/>
+            <arg value="${tool.ant.executable}"/>
+            <arg value="-BuildFile"/>
+            <arg value="build.xml"/>
+            <arg value="-SvnExecutable"/>
+            <arg value="${tool.svn.executable}"/>
+            <arg value="-OutputZip"/>
+            <arg path="${dist.dir}/team-revisions.zip"/>
+            <arg value="-TempDir"/>
+            <arg path="${team.dir}"/>
+        </exec>
+    </target>
+
+    <target name="prepare-alt" depends="init">
+        <delete dir="${alt.src.dir}"/>
+        <copy todir="${alt.src.dir}">
+            <fileset dir="${src.main.java.dir}"/>
+        </copy>
+        <replace dir="${alt.src.dir}" includes="**/*.java" token="${alt.replace.token.1}" value="${alt.replace.value.1}"/>
+        <replace dir="${alt.src.dir}" includes="**/*.java" token="${alt.replace.token.2}" value="${alt.replace.value.2}"/>
+        <replaceregexp byline="true"
+                       match="${alt.regex.match.1}"
+                       replace="${alt.regex.replace.1}">
+            <fileset dir="${alt.src.dir}" includes="**/*.java"/>
+        </replaceregexp>
+    </target>
+
+    <target name="alt" depends="prepare-alt">
+        <antcall target="build">
+            <param name="compile.src.dir" value="${alt.src.dir}"/>
+            <param name="jar.output.file" value="${dist.dir}/${alt.jar.name}"/>
+        </antcall>
+    </target>
+</project>

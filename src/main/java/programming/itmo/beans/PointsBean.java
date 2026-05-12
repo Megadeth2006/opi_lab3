@@ -12,6 +12,7 @@ import javax.faces.context.FacesContext;
 import lombok.Getter;
 import lombok.Setter;
 import org.primefaces.PrimeFaces;
+import programming.itmo.config.AppStrings;
 import programming.itmo.model.PointDTO;
 import programming.itmo.util.CheckAreaUtil;
 
@@ -56,7 +57,7 @@ public class PointsBean implements Serializable {
             if (yValue != null && rValue != null) {
                 // Если hiddenX задан (из чекбоксов), обрабатываем все X
                 if (hiddenX != null && !hiddenX.isEmpty()) {
-            String[] xs = hiddenX.split(",");
+            String[] xs = hiddenX.split(AppStrings.get("points.hiddenX.separator"));
             for (String xStr : xs) {
                 xStr = xStr.trim();
                 if (!xStr.isEmpty()) {
@@ -71,18 +72,18 @@ public class PointsBean implements Serializable {
             bulletHit = false;
         }
 
-        PrimeFaces.current().ajax().addCallbackParam("bulletHit", bulletHit);
+        PrimeFaces.current().ajax().addCallbackParam(AppStrings.get("points.callback.bulletHit"), bulletHit);
     }
     public void resetXList() {
         for (String key : xList.keySet()) {
             xList.put(key, false);
         }
-        hiddenX = "";
+        hiddenX = AppStrings.get("points.value.empty");
     }
 
     public void resetY() {
         this.y = null;
-        this.hiddenY = "";
+        this.hiddenY = AppStrings.get("points.value.empty");
     }
 
     public void updateFilteredPoints() {
@@ -94,12 +95,12 @@ public class PointsBean implements Serializable {
             });
         }
         String json = new Gson().toJson(allPoints);
-        PrimeFaces.current().ajax().addCallbackParam("pointsJson", json);
+        PrimeFaces.current().ajax().addCallbackParam(AppStrings.get("points.callback.json"), json);
     }
     
     public void setCurrentMaxR() {
         FacesContext context = FacesContext.getCurrentInstance();
-        String maxRParam = context.getExternalContext().getRequestParameterMap().get("maxR");
+        String maxRParam = context.getExternalContext().getRequestParameterMap().get(AppStrings.get("points.request.maxR"));
         if (maxRParam != null && !maxRParam.isEmpty()) {
             try {
                 this.currentMaxR = new BigDecimal(maxRParam);
