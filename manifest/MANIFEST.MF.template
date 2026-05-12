@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Implementation-Title: @project.name@
+Implementation-Version: @project.version@
+Main-Class: @project.main.class@
